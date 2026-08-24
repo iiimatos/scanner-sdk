@@ -1,0 +1,25 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScannerAgent", "apps\scanner-agent\ScannerAgent.csproj", "{02EBB9F6-5C50-4F57-B3E9-47B3D5390A2C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ScannerAgent.Tests", "apps\scanner-agent.Tests\ScannerAgent.Tests.csproj", "{5574534B-E92D-4598-810D-D92E403DF66A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{02EBB9F6-5C50-4F57-B3E9-47B3D5390A2C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02EBB9F6-5C50-4F57-B3E9-47B3D5390A2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02EBB9F6-5C50-4F57-B3E9-47B3D5390A2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02EBB9F6-5C50-4F57-B3E9-47B3D5390A2C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5574534B-E92D-4598-810D-D92E403DF66A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5574534B-E92D-4598-810D-D92E403DF66A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5574534B-E92D-4598-810D-D92E403DF66A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5574534B-E92D-4598-810D-D92E403DF66A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,20 @@
+{
+  "name": "scanner-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@8.7.4",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "test": "turbo test",
+    "typecheck": "turbo typecheck",
+    "agent:dev": "dotnet run --project apps/scanner-agent/ScannerAgent.csproj",
+    "agent:build": "dotnet build ScannerSdk.sln",
+    "agent:test": "dotnet test ScannerSdk.sln"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.6",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

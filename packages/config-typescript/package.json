@@ -1,0 +1,9 @@
+{
+  "name": "@scanner-sdk/config-typescript",
+  "version": "0.1.0",
+  "private": true,
+  "files": [
+    "base.json",
+    "next.json"
+  ]
+}

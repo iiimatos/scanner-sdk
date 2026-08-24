@@ -1,0 +1,14 @@
+node_modules/
+.turbo/
+dist/
+.next/
+coverage/
+TestResults/
+bin/
+obj/
+*.tsbuildinfo
+.vite/
+*.user
+*.suo
+.DS_Store
+*.nupkg

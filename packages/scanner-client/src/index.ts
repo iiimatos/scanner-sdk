@@ -1,0 +1,96 @@
+import { z } from "zod";
+import type { ScanOptions, ScanResult, ScannerDevice } from "@scanner-sdk/types";
+
+export type { ScanOptions, ScanResult, ScannerCapabilities, ScannerDevice, ScannerStatus } from "@scanner-sdk/types";
+
+export interface ScannerClientOptions {
+  baseUrl?: string;
+  fetchFn?: FetchFn;
+}
+
+type FetchFn = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+const scannerCapabilitiesSchema = z.object({
+  supportsDuplex: z.boolean(),
+  supportsAdf: z.boolean(),
+  colorModes: z.array(z.enum(["color", "grayscale", "black-and-white"])),
+  formats: z.array(z.enum(["pdf", "png", "jpeg"])),
+  minDpi: z.number(),
+  maxDpi: z.number()
+});
+
+const scannerDeviceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  provider: z.string(),
+  status: z.enum(["ready", "busy", "offline", "unknown"]),
+  capabilities: scannerCapabilitiesSchema
+});
+
+const scanResultSchema = z.object({
+  id: z.string(),
+  deviceId: z.string(),
+  status: z.enum(["completed", "failed"]),
+  format: z.enum(["pdf", "png", "jpeg"]),
+  mimeType: z.string(),
+  fileName: z.string().optional(),
+  message: z.string().optional()
+});
+
+const healthSchema = z.object({
+  status: z.string(),
+  service: z.string(),
+  version: z.string()
+});
+
+export class ScannerClient {
+  private readonly baseUrl: string;
+  private readonly fetchFn: FetchFn;
+
+  constructor(options: ScannerClientOptions = {}) {
+    this.baseUrl = (options.baseUrl ?? "http://127.0.0.1:17890").replace(/\/+$/, "");
+    this.fetchFn = options.fetchFn ?? ((input, init) => fetch(input, init));
+  }
+
+  async isAvailable(): Promise<boolean> {
+    try {
+      const response = await this.fetchFn(`${this.baseUrl}/health`);
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const health = healthSchema.parse(await response.json());
+      return health.status === "ready" && health.service === "scanner-agent";
+    } catch {
+      return false;
+    }
+  }
+
+  async getDevices(): Promise<ScannerDevice[]> {
+    const response = await this.fetchFn(`${this.baseUrl}/devices`);
+    await ensureOk(response, "Unable to fetch scanner devices");
+
+    return z.array(scannerDeviceSchema).parse(await response.json());
+  }
+
+  async scan(options: ScanOptions): Promise<ScanResult> {
+    const response = await this.fetchFn(`${this.baseUrl}/scan`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(options)
+    });
+    await ensureOk(response, "Unable to start scan");
+
+    return scanResultSchema.parse(await response.json());
+  }
+}
+
+async function ensureOk(response: Response, message: string): Promise<void> {
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(body ? `${message}: ${response.status} ${body}` : `${message}: ${response.status}`);
+  }
+}
