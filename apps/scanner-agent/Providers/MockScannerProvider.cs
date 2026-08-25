@@ -13,12 +13,42 @@ public sealed class MockScannerProvider : IScannerProvider
         "mock",
         ScannerStatus.Ready,
         new ScannerCapabilities(
-            SupportsDuplex: false,
-            SupportsAdf: false,
-            ColorModes: ["color", "grayscale", "black-and-white"],
-            Formats: ["pdf", "png", "jpeg"],
-            MinDpi: 75,
-            MaxDpi: 600));
+            Resolutions: [150, 200, 300, 600],
+            ColorModes: ["color", "grayscale", "black-white"],
+            Sources: ["flatbed", "feeder"],
+            Duplex: true
+        ));
+
+    public Task<ScannerCapabilities?> GetCapabilitiesAsync(
+        string deviceId,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (deviceId != "mock-scanner-001")
+        {
+            return Task.FromResult<ScannerCapabilities?>(null);
+        }
+
+        var capabilities = new ScannerCapabilities(
+            Resolutions: new[] { 150, 200, 300, 600 },
+            ColorModes: new[]
+            {
+            "color",
+            "grayscale",
+            "black-white"
+            },
+            Sources: new[]
+            {
+            "flatbed",
+            "feeder"
+            },
+            Duplex: true
+        );
+
+        return Task.FromResult<ScannerCapabilities?>(
+            capabilities
+        );
+    }
 
     public Task<IReadOnlyList<ScannerDevice>> GetDevicesAsync(
         CancellationToken cancellationToken = default)

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import type { ScanOptions, ScanResult, ScannerDevice } from "@scanner-sdk/types";
+import type { ScanOptions, ScannerCapabilities, ScanResult, ScannerDevice } from "@scanner-sdk/types";
 
-export type { ScanOptions, ScanResult, ScannerCapabilities, ScannerDevice, ScannerStatus } from "@scanner-sdk/types";
+export type { ScanOptions, ScannerCapabilities, ScanResult, ScannerDevice, ScannerStatus, ScanColorMode, ScanSource } from "@scanner-sdk/types";
 
 export interface ScannerClientOptions {
   baseUrl?: string;
@@ -11,20 +11,26 @@ export interface ScannerClientOptions {
 type FetchFn = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 const scannerCapabilitiesSchema = z.object({
-  supportsDuplex: z.boolean(),
-  supportsAdf: z.boolean(),
-  colorModes: z.array(z.enum(["color", "grayscale", "black-and-white"])),
-  formats: z.array(z.enum(["pdf", "png", "jpeg"])),
-  minDpi: z.number(),
-  maxDpi: z.number()
+  resolutions: z.array(z.number()),
+  colorModes: z.array(
+    z.enum(["color", "grayscale", "black-white"])
+  ),
+  sources: z.array(
+    z.enum(["flatbed", "feeder"])
+  ),
+  duplex: z.boolean(),
 });
 
 const scannerDeviceSchema = z.object({
   id: z.string(),
   name: z.string(),
-  provider: z.string(),
-  status: z.enum(["ready", "busy", "offline", "unknown"]),
-  capabilities: scannerCapabilitiesSchema
+  provider: z.enum(["mock", "wia", "twain"]),
+  status: z.enum([
+    "ready",
+    "busy",
+    "offline",
+  ]),
+  capabilities: scannerCapabilitiesSchema,
 });
 
 const scanResultSchema = z.object({
@@ -85,6 +91,24 @@ export class ScannerClient {
     await ensureOk(response, "Unable to start scan");
 
     return scanResultSchema.parse(await response.json());
+  }
+
+  async getCapabilities(
+    deviceId: string
+  ): Promise<ScannerCapabilities> {
+    const response = await fetch(
+      `${this.baseUrl}/devices/${encodeURIComponent(
+        deviceId
+      )}/capabilities`
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        `Unable to load scanner capabilities`
+      );
+    }
+
+    return response.json();
   }
 }
 

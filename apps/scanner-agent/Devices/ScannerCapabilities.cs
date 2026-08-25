@@ -1,9 +1,8 @@
 namespace ScannerAgent.Devices;
 
 public sealed record ScannerCapabilities(
-    bool SupportsDuplex,
-    bool SupportsAdf,
+    IReadOnlyList<int> Resolutions,
     IReadOnlyList<string> ColorModes,
-    IReadOnlyList<string> Formats,
-    int MinDpi,
-    int MaxDpi);
+    IReadOnlyList<string> Sources,
+    bool Duplex
+);

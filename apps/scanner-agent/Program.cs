@@ -56,6 +56,33 @@ app.MapGet("/devices", async (IScannerProvider scannerProvider, CancellationToke
     await scannerProvider.GetDevicesAsync(cancellationToken))
     .WithName("GetDevices");
 
+app.MapGet(
+    "/devices/{deviceId}/capabilities",
+    async (
+        string deviceId,
+        IScannerProvider scannerProvider,
+        CancellationToken cancellationToken
+    ) =>
+    {
+        var capabilities =
+            await scannerProvider.GetCapabilitiesAsync(
+                deviceId,
+                cancellationToken
+            );
+
+        if (capabilities is null)
+        {
+            return Results.NotFound(new
+            {
+                code = "DEVICE_NOT_FOUND",
+                message = "Scanner device was not found."
+            });
+        }
+
+        return Results.Ok(capabilities);
+    }
+);
+
 app.MapPost("/scan", async (ScanOptions options, IScannerProvider scannerProvider, CancellationToken cancellationToken) =>
     await scannerProvider.ScanAsync(options, cancellationToken))
     .WithName("Scan");

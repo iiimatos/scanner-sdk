@@ -1,6 +1,18 @@
 export type ScannerStatus = "ready" | "busy" | "offline" | "unknown";
 
-export type ScanColorMode = "color" | "grayscale" | "black-and-white";
+export type ScannerProviderType =
+  | "mock"
+  | "wia"
+  | "twain";
+
+export type ScanColorMode =
+  | "color"
+  | "grayscale"
+  | "black-white";
+
+export type ScanSource =
+  | "flatbed"
+  | "feeder";
 
 export type ScanFormat = "pdf" | "png" | "jpeg";
 
@@ -16,15 +28,24 @@ export interface ScannerCapabilities {
 export interface ScannerDevice {
   id: string;
   name: string;
-  provider: string;
-  status: ScannerStatus;
-  capabilities: ScannerCapabilities;
+  provider: ScannerProviderType;
+  manufacturer?: string;
+  model?: string;
+}
+
+export interface ScannerCapabilities {
+  resolutions: number[];
+  colorModes: ScanColorMode[];
+  sources: ScanSource[];
+  duplex: boolean;
 }
 
 export interface ScanOptions {
   deviceId: string;
   dpi: number;
   colorMode: ScanColorMode;
+  source: ScanSource;
+  duplex: boolean;
   format: ScanFormat;
 }
 
