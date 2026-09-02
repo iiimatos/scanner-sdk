@@ -7,4 +7,5 @@ public sealed record ScanResult(
     string Format,
     string MimeType,
     string? FileName,
-    string? Message);
+    string? Message,
+    string? DataBase64 = null);
