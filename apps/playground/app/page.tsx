@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ScannerClient,
   type ScanColorMode,
+  type ScanFormat,
   type ScanOptions,
   type ScanResult,
   type ScanSource,
@@ -23,7 +24,9 @@ export default function Home() {
   const [colorMode, setColorMode] = useState<ScanColorMode>("color");
   const [source, setSource] = useState<ScanSource>("flatbed");
   const [duplex, setDuplex] = useState(false);
+  const [format, setFormat] = useState<ScanFormat>("pdf");
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const selectedDevice = devices.find((device) => device.id === selectedDeviceId) ?? null;
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -91,7 +94,7 @@ export default function Home() {
         colorMode,
         source,
         duplex,
-        format: "pdf",
+        format,
       };
 
       const result = await scanner.scan(scanOptions);
@@ -144,6 +147,7 @@ export default function Home() {
     setColorMode(capabilities.colorModes[0] ?? "color");
     setSource(capabilities.sources[0] ?? "flatbed");
     setDuplex(false);
+    setFormat(capabilities.formats.includes("pdf") ? "pdf" : capabilities.formats[0] ?? "pdf");
   }
 
   return (
@@ -218,6 +222,34 @@ export default function Home() {
               </select>
             </label>
           )}
+          {selectedDevice ? (
+            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="font-medium text-slate-700">
+                  Provider
+                </dt>
+                <dd className="mt-1 text-slate-600">
+                  {selectedDevice.provider}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium text-slate-700">
+                  Status
+                </dt>
+                <dd className="mt-1 text-slate-600">
+                  {selectedDevice.status}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium text-slate-700">
+                  Device ID
+                </dt>
+                <dd className="mt-1 break-all text-slate-600">
+                  {selectedDevice.id}
+                </dd>
+              </div>
+            </dl>
+          ) : null}
         </div>
       </section>
       {capabilities ? (
@@ -303,6 +335,31 @@ export default function Home() {
                 )}
               </select>
             </label>
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-slate-700">
+                Format
+              </span>
+              <select
+                className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                value={format}
+                onChange={(event) =>
+                  setFormat(
+                    event.target.value as ScanFormat
+                  )
+                }
+              >
+                {capabilities.formats.map(
+                  (item) => (
+                    <option
+                      key={item}
+                      value={item}
+                    >
+                      {item}
+                    </option>
+                  )
+                )}
+              </select>
+            </label>
             <label className="flex items-center gap-3 self-end rounded border border-slate-200 px-3 py-2">
               <input
                 type="checkbox"
@@ -324,6 +381,24 @@ export default function Home() {
               </div>
             </label>
           </div>
+          <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="font-medium text-slate-700">
+                Resolutions
+              </dt>
+              <dd className="mt-1 text-slate-600">
+                {capabilities.resolutions.join(", ")}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium text-slate-700">
+                Formats
+              </dt>
+              <dd className="mt-1 text-slate-600">
+                {capabilities.formats.join(", ")}
+              </dd>
+            </div>
+          </dl>
           <button
             className="mt-6 w-full rounded bg-slate-900 px-4 py-3 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
             disabled={
@@ -349,6 +424,40 @@ export default function Home() {
             {scanResult.message ??
               `${scanResult.fileName} completed.`}
           </p>
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="font-medium">
+                Result ID
+              </dt>
+              <dd className="mt-1 break-all">
+                {scanResult.id}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium">
+                File
+              </dt>
+              <dd className="mt-1 break-all">
+                {scanResult.fileName ?? "N/A"}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium">
+                Format
+              </dt>
+              <dd className="mt-1">
+                {scanResult.format}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-medium">
+                MIME type
+              </dt>
+              <dd className="mt-1">
+                {scanResult.mimeType}
+              </dd>
+            </div>
+          </dl>
         </section>
       ) : null}
       {error ? (
