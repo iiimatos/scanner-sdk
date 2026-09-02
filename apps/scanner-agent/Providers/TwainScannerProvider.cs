@@ -3,11 +3,14 @@ using ScannerAgent.Models;
 using ScannerAgent.Scanning;
 using NTwain;
 using NTwain.Data;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Windows.Interop;
+using System.Windows.Threading;
 
 namespace ScannerAgent.Providers;
 
-public sealed class TwainScannerProvider : IScannerProvider
+public sealed class TwainScannerProvider : IScannerProvider, IDisposable
 {
     private static readonly ScannerCapabilities DefaultCapabilities = new(
         Resolutions: [200, 300],
@@ -18,8 +21,15 @@ public sealed class TwainScannerProvider : IScannerProvider
     );
 
     private readonly SemaphoreSlim _twainLock = new(1, 1);
+    private readonly TwainThread _twainThread = new();
 
     public bool IsAvailable => IsTwainRuntimeAvailable();
+
+    public void Dispose()
+    {
+        _twainThread.Dispose();
+        _twainLock.Dispose();
+    }
 
     public async Task<IReadOnlyList<ScannerDevice>> GetDevicesAsync(
         CancellationToken cancellationToken = default
@@ -34,11 +44,13 @@ public sealed class TwainScannerProvider : IScannerProvider
 
         try
         {
-            return WithOpenSession(session =>
-                session
-                    .GetSources()
-                    .Select(ToScannerDevice)
-                    .ToList()
+            return await _twainThread.RunAsync(() =>
+                WithOpenSession(session =>
+                    session
+                        .GetSources()
+                        .Select(ToScannerDevice)
+                        .ToList()
+                )
             );
         }
         finally
@@ -61,34 +73,36 @@ public sealed class TwainScannerProvider : IScannerProvider
 
         try
         {
-            return WithOpenSession(session =>
-            {
-                var source = FindSource(session, deviceId);
-
-                if (source is null)
+            return await _twainThread.RunAsync(() =>
+                WithOpenSession(session =>
                 {
-                    return null;
-                }
+                    var source = FindSource(session, deviceId);
 
-                var openResult = source.Open();
+                    if (source is null)
+                    {
+                        return null;
+                    }
 
-                if (openResult != ReturnCode.Success)
-                {
-                    throw new ScannerOperationException(
-                        "TWAIN_SOURCE_OPEN_FAILED",
-                        $"TWAIN source '{source.Name}' could not be opened."
-                    );
-                }
+                    var openResult = source.Open();
 
-                try
-                {
-                    return ReadCapabilities(source);
-                }
-                finally
-                {
-                    source.Close();
-                }
-            });
+                    if (openResult != ReturnCode.Success)
+                    {
+                        throw new ScannerOperationException(
+                            "TWAIN_SOURCE_OPEN_FAILED",
+                            $"TWAIN source '{source.Name}' could not be opened."
+                        );
+                    }
+
+                    try
+                    {
+                        return ReadCapabilities(source);
+                    }
+                    finally
+                    {
+                        source.Close();
+                    }
+                })
+            );
         }
         finally
         {
@@ -112,51 +126,122 @@ public sealed class TwainScannerProvider : IScannerProvider
 
         try
         {
-            return await WithOpenSessionAsync(async session =>
-            {
-                var source = FindSource(session, options.DeviceId);
-
-                if (source is null)
+            return await _twainThread.RunAsync(() =>
+                WithOpenSessionAsync(async session =>
                 {
-                    throw new ScannerDeviceNotFoundException(
-                        options.DeviceId
-                    );
-                }
+                    var source = FindSource(session, options.DeviceId);
 
-                var openResult = source.Open();
+                    if (source is null)
+                    {
+                        throw new ScannerDeviceNotFoundException(
+                            options.DeviceId
+                        );
+                    }
 
-                if (openResult != ReturnCode.Success)
-                {
-                    throw new ScannerOperationException(
-                        "TWAIN_SOURCE_OPEN_FAILED",
-                        $"TWAIN source '{source.Name}' could not be opened."
-                    );
-                }
+                    var openResult = source.Open();
 
-                try
-                {
-                    ValidateOptions(
-                        options,
-                        ReadCapabilities(source)
-                    );
-                    ConfigureSource(source, options);
+                    if (openResult != ReturnCode.Success)
+                    {
+                        throw new ScannerOperationException(
+                            "TWAIN_SOURCE_OPEN_FAILED",
+                            $"TWAIN source '{source.Name}' could not be opened."
+                        );
+                    }
 
-                    return await ScanWithFileTransferAsync(
-                        session,
-                        source,
-                        options,
-                        cancellationToken
-                    );
-                }
-                finally
-                {
-                    source.Close();
-                }
-            });
+                    try
+                    {
+                        ValidateOptions(
+                            options,
+                            ReadCapabilities(source)
+                        );
+                        ConfigureSource(source, options);
+
+                        return await ScanWithFileTransferAsync(
+                            session,
+                            source,
+                            options,
+                            _twainThread.WindowHandle,
+                            cancellationToken
+                        );
+                    }
+                    finally
+                    {
+                        source.Close();
+                    }
+                })
+            );
         }
         finally
         {
             _twainLock.Release();
+        }
+    }
+
+    // TWAIN's native DSM/source handles are thread-affine: every call touching
+    // an open session or source must run on the same thread that keeps pumping
+    // its Windows messages, or the native call can access-violate (0xC0000005).
+    // ASP.NET Core's thread pool can resume an `await` continuation on a
+    // different thread, so all TWAIN work is marshalled onto one dedicated STA
+    // thread with its own Dispatcher, whose SynchronizationContext keeps every
+    // subsequent `await` inside that work pinned back to the same thread.
+    private sealed class TwainThread : IDisposable
+    {
+        private readonly Dispatcher _dispatcher;
+        private readonly HwndSource _hwndSource;
+
+        // Some TWAIN drivers (Epson's included) dereference the parent window
+        // handle passed to DAT_USERINTERFACE/MSG_ENABLEDS unconditionally, even
+        // with ShowUI=false, and access-violate natively when given IntPtr.Zero.
+        // A real (just invisible) window is created here so there is always a
+        // valid HWND to hand the driver.
+        public IntPtr WindowHandle { get; }
+
+        public TwainThread()
+        {
+            using var ready = new ManualResetEventSlim();
+            Dispatcher? dispatcher = null;
+            HwndSource? hwndSource = null;
+
+            var thread = new Thread(() =>
+            {
+                dispatcher = Dispatcher.CurrentDispatcher;
+                SynchronizationContext.SetSynchronizationContext(
+                    new DispatcherSynchronizationContext(dispatcher)
+                );
+
+                hwndSource = new HwndSource(new HwndSourceParameters("ScannerSdkTwainHost")
+                {
+                    Width = 0,
+                    Height = 0,
+                    WindowStyle = 0
+                });
+
+                ready.Set();
+                Dispatcher.Run();
+            })
+            {
+                IsBackground = true,
+                Name = "TwainThread"
+            };
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+
+            ready.Wait();
+            _dispatcher = dispatcher!;
+            _hwndSource = hwndSource!;
+            WindowHandle = _hwndSource.Handle;
+        }
+
+        public Task<T> RunAsync<T>(Func<T> action) =>
+            _dispatcher.InvokeAsync(action).Task;
+
+        public async Task<T> RunAsync<T>(Func<Task<T>> action) =>
+            await await _dispatcher.InvokeAsync(action);
+
+        public void Dispose()
+        {
+            _dispatcher.Invoke(() => _hwndSource.Dispose());
+            _dispatcher.InvokeShutdown();
         }
     }
 
@@ -235,6 +320,7 @@ public sealed class TwainScannerProvider : IScannerProvider
         TwainSession session,
         DataSource source,
         ScanOptions options,
+        IntPtr windowHandle,
         CancellationToken cancellationToken
     )
     {
@@ -328,6 +414,10 @@ public sealed class TwainScannerProvider : IScannerProvider
             ));
         }
 
+        var sourceDisabled = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously
+        );
+
         void OnSourceDisabled(
             object? sender,
             EventArgs args
@@ -340,6 +430,8 @@ public sealed class TwainScannerProvider : IScannerProvider
                     "TWAIN source was disabled before a page was transferred."
                 ));
             }
+
+            sourceDisabled.TrySetResult(true);
         }
 
         session.DataTransferred += OnDataTransferred;
@@ -349,7 +441,7 @@ public sealed class TwainScannerProvider : IScannerProvider
         try
         {
             EnsureSuccess(
-                source.Enable(SourceEnableMode.NoUI, false, IntPtr.Zero),
+                source.Enable(SourceEnableMode.NoUI, false, windowHandle),
                 "TWAIN_ENABLE_SOURCE_FAILED",
                 $"TWAIN source '{source.Name}' could not be enabled."
             );
@@ -368,6 +460,17 @@ public sealed class TwainScannerProvider : IScannerProvider
             }
 
             var completedFilePath = await transfer.Task;
+
+            // The driver still owns the source at this point (TWAIN state
+            // Enabled/Transferring). Closing it before the driver disables it
+            // itself is an invalid state transition that has been observed to
+            // crash the Epson driver natively. Give it a grace period to
+            // disable on its own before handing control back to the caller,
+            // whose `finally` block will call source.Close().
+            await Task.WhenAny(
+                sourceDisabled.Task,
+                Task.Delay(TimeSpan.FromSeconds(5))
+            );
 
             return new ScanResult(
                 Id: $"scan_{options.DeviceId}_{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",

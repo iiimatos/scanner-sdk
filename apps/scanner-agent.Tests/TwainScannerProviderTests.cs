@@ -10,7 +10,7 @@ public sealed class TwainScannerProviderTests
     [Fact]
     public async Task GetDevicesAsyncDoesNotReturnFakeHardware()
     {
-        var provider = new TwainScannerProvider();
+        using var provider = new TwainScannerProvider();
 
         if (provider.IsAvailable)
         {
@@ -25,7 +25,7 @@ public sealed class TwainScannerProviderTests
     [Fact]
     public async Task ScanAsyncRejectsUnknownTwainDevice()
     {
-        var provider = new TwainScannerProvider();
+        using var provider = new TwainScannerProvider();
 
         var exception = await Assert.ThrowsAsync<ScannerDeviceNotFoundException>(
             () => provider.ScanAsync(new ScanOptions(
