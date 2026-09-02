@@ -1,5 +1,6 @@
 using ScannerAgent.Errors;
 using ScannerAgent.Health;
+using ScannerAgent.Models;
 using ScannerAgent.Providers;
 using ScannerAgent.Scanning;
 using ScannerAgent.Services;
@@ -63,11 +64,24 @@ app.MapGet(
         CancellationToken cancellationToken
     ) =>
     {
-        var capabilities =
-            await scannerProvider.GetCapabilitiesAsync(
-                deviceId,
-                cancellationToken
+        ScannerCapabilities? capabilities;
+
+        try
+        {
+            capabilities =
+                await scannerProvider.GetCapabilitiesAsync(
+                    deviceId,
+                    cancellationToken
+                );
+        }
+        catch (ScannerOperationException exception)
+        {
+            return Results.Problem(
+                title: exception.Code,
+                detail: exception.Message,
+                statusCode: StatusCodes.Status503ServiceUnavailable
             );
+        }
 
         if (capabilities is null)
         {
@@ -113,6 +127,14 @@ app.MapPost(
                 requested = exception.Requested,
                 supported = exception.Supported
             });
+        }
+        catch (ScannerOperationException exception)
+        {
+            return Results.Problem(
+                title: exception.Code,
+                detail: exception.Message,
+                statusCode: StatusCodes.Status503ServiceUnavailable
+            );
         }
     }
 );

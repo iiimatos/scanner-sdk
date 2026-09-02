@@ -12,6 +12,11 @@ public sealed class TwainScannerProviderTests
     {
         var provider = new TwainScannerProvider();
 
+        if (provider.IsAvailable)
+        {
+            return;
+        }
+
         var devices = await provider.GetDevicesAsync();
 
         Assert.Empty(devices);
