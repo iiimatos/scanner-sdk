@@ -14,9 +14,12 @@ public sealed class MockScannerProviderTests
         var devices = await provider.GetDevicesAsync();
 
         Assert.Single(devices);
-        Assert.Equal("mock-scanner-001", devices[0].Id);
-        Assert.Equal("Scanner SDK Virtual Scanner", devices[0].Name);
+        Assert.Equal("mock-scanner-1", devices[0].Id);
+        Assert.Equal("Development Scanner", devices[0].Name);
         Assert.Equal("mock", devices[0].Provider);
+        Assert.Equal([200, 300], devices[0].Capabilities.Resolutions);
+        Assert.Equal(["flatbed"], devices[0].Capabilities.Sources);
+        Assert.False(devices[0].Capabilities.Duplex);
     }
 
     [Fact]
@@ -25,11 +28,11 @@ public sealed class MockScannerProviderTests
         var provider = new MockScannerProvider();
 
         var result = await provider.ScanAsync(new ScanOptions(
-            DeviceId: "mock-scanner-001",
+            DeviceId: MockScannerProvider.DeviceId,
             Dpi: 300,
             ColorMode: "color",
             Source: "flatbed",
-            Duplex: true,
+            Duplex: false,
             Format: "pdf"
         ));
 

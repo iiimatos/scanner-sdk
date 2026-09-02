@@ -15,6 +15,9 @@ public sealed class CompositeScannerProvider : IScannerProvider
         _providers = providers;
     }
 
+    public bool IsAvailable =>
+        _providers.Any(provider => provider.IsAvailable);
+
     public async Task<IReadOnlyList<ScannerDevice>> GetDevicesAsync(
         CancellationToken cancellationToken = default
     )

@@ -30,6 +30,7 @@ public sealed class ScanServiceTests
     [InlineData(75, "color", "flatbed", false, "pdf", "resolution")]
     [InlineData(300, "unsupported-color", "flatbed", false, "pdf", "colorMode")]
     [InlineData(300, "color", "adf", false, "pdf", "source")]
+    [InlineData(300, "color", "flatbed", true, "pdf", "duplex")]
     [InlineData(300, "color", "flatbed", false, "tiff", "format")]
     public async Task ScanAsyncRejectsUnsupportedCapabilities(
         int dpi,

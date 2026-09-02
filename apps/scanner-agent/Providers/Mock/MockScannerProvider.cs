@@ -6,7 +6,9 @@ namespace ScannerAgent.Providers;
 
 public sealed class MockScannerProvider : IScannerProvider
 {
-    public const string DeviceId = "mock-scanner-001";
+    public const string DeviceId = "mock-scanner-1";
+
+    public bool IsAvailable => true;
 
     // Smallest valid single-pixel files, used so the playground has real
     // bytes to preview without a physical scanner attached.
@@ -17,14 +19,14 @@ public sealed class MockScannerProvider : IScannerProvider
 
     private static readonly ScannerDevice Device = new(
         DeviceId,
-        "Scanner SDK Virtual Scanner",
+        "Development Scanner",
         "mock",
         ScannerStatus.Ready,
         new ScannerCapabilities(
-            Resolutions: [150, 200, 300, 600],
+            Resolutions: [200, 300],
             ColorModes: ["color", "grayscale", "black-white"],
-            Sources: ["flatbed", "feeder"],
-            Duplex: true,
+            Sources: ["flatbed"],
+            Duplex: false,
             Formats: ["pdf", "png", "jpeg"]
         ));
 

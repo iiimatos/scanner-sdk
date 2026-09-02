@@ -5,6 +5,8 @@ namespace ScannerAgent.Providers;
 
 public interface IScannerProvider
 {
+    bool IsAvailable { get; }
+
     Task<IReadOnlyList<ScannerDevice>> GetDevicesAsync(
         CancellationToken cancellationToken = default
     );

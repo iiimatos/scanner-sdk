@@ -6,11 +6,15 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ScannerClient } from "../src/index";
 
-const agentUrl = "http://127.0.0.1:17890";
+const agentUrl =
+  process.env.SCANNER_AGENT_CONTRACT_URL ?? "http://127.0.0.1:17891";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const agentTargetFramework =
+  process.env.SCANNER_AGENT_TFM ??
+  (process.platform === "win32" ? "net10.0-windows" : "net10.0");
 const agentAssembly = resolve(
   repoRoot,
-  "apps/scanner-agent/bin/Debug/net10.0/ScannerAgent.dll"
+  `apps/scanner-agent/bin/Debug/${agentTargetFramework}/ScannerAgent.dll`
 );
 
 let agentProcess: ChildProcessWithoutNullStreams | undefined;
@@ -30,6 +34,8 @@ describe("Scanner Agent contract", () => {
         env: {
           ...process.env,
           ASPNETCORE_ENVIRONMENT: "Testing",
+          Scanner__UseMock: "true",
+          ScannerAgent__Url: agentUrl,
         },
       }
     );
@@ -68,27 +74,27 @@ describe("Scanner Agent contract", () => {
 
     expect(devices).toEqual([
       {
-        id: "mock-scanner-001",
-        name: "Scanner SDK Virtual Scanner",
+        id: "mock-scanner-1",
+        name: "Development Scanner",
         provider: "mock",
         status: "ready",
         capabilities: {
-          resolutions: [150, 200, 300, 600],
+          resolutions: [200, 300],
           colorModes: ["color", "grayscale", "black-white"],
-          sources: ["flatbed", "feeder"],
+          sources: ["flatbed"],
           formats: ["pdf", "png", "jpeg"],
-          duplex: true,
+          duplex: false,
         },
       },
     ]);
 
-    await expect(scanner.getCapabilities("mock-scanner-001")).resolves.toEqual(
+    await expect(scanner.getCapabilities("mock-scanner-1")).resolves.toEqual(
       devices[0]?.capabilities
     );
 
     await expect(
       scanner.scan({
-        deviceId: "mock-scanner-001",
+        deviceId: "mock-scanner-1",
         dpi: 300,
         colorMode: "color",
         source: "flatbed",
@@ -96,7 +102,7 @@ describe("Scanner Agent contract", () => {
         format: "pdf",
       })
     ).resolves.toMatchObject({
-      deviceId: "mock-scanner-001",
+      deviceId: "mock-scanner-1",
       status: "completed",
       format: "pdf",
       mimeType: "application/pdf",
@@ -109,7 +115,7 @@ describe("Scanner Agent contract", () => {
 
     await expect(
       scanner.scan({
-        deviceId: "mock-scanner-001",
+        deviceId: "mock-scanner-1",
         dpi: 75,
         colorMode: "color",
         source: "flatbed",

@@ -23,4 +23,20 @@ public sealed class HealthEndpointTests
         Assert.Equal("scanner-agent", body.Service);
         Assert.Equal("0.1.0", body.Version);
     }
+
+    [Fact]
+    public async Task HealthLiveEndpointReturnsReady()
+    {
+        await using var application = new WebApplicationFactory<Program>();
+        using var client = application.CreateClient();
+
+        var response = await client.GetAsync("/health/live");
+        var body = await response.Content.ReadFromJsonAsync<HealthResponse>();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotNull(body);
+        Assert.Equal("ready", body.Status);
+        Assert.Equal("scanner-agent", body.Service);
+        Assert.Equal("0.1.0", body.Version);
+    }
 }

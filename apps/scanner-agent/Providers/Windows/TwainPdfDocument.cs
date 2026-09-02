@@ -3,12 +3,12 @@ using System.IO;
 using System.Text;
 using ScannerAgent.Errors;
 
-namespace ScannerAgent.Scanning;
+namespace ScannerAgent.Providers;
 
 // Wraps a single JFIF/JPEG image into a minimal one-page PDF. Used when a
 // TWAIN driver accepts a direct-to-PDF file transfer request but never
 // actually produces the output file (observed with the Epson DS-530II).
-public static class PdfDocument
+internal static class TwainPdfDocument
 {
     public static byte[] WrapJpeg(byte[] jpegBytes, int dpi)
     {

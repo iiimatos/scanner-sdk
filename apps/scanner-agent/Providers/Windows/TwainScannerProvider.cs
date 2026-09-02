@@ -5,8 +5,6 @@ using NTwain;
 using NTwain.Data;
 using System.IO;
 using System.Runtime.InteropServices;
-using System.Windows.Interop;
-using System.Windows.Threading;
 
 namespace ScannerAgent.Providers;
 
@@ -150,10 +148,6 @@ public sealed class TwainScannerProvider : IScannerProvider, IDisposable
 
                     try
                     {
-                        ValidateOptions(
-                            options,
-                            ReadCapabilities(source)
-                        );
                         ConfigureSource(source, options);
 
                         return await ScanWithFileTransferAsync(
@@ -174,74 +168,6 @@ public sealed class TwainScannerProvider : IScannerProvider, IDisposable
         finally
         {
             _twainLock.Release();
-        }
-    }
-
-    // TWAIN's native DSM/source handles are thread-affine: every call touching
-    // an open session or source must run on the same thread that keeps pumping
-    // its Windows messages, or the native call can access-violate (0xC0000005).
-    // ASP.NET Core's thread pool can resume an `await` continuation on a
-    // different thread, so all TWAIN work is marshalled onto one dedicated STA
-    // thread with its own Dispatcher, whose SynchronizationContext keeps every
-    // subsequent `await` inside that work pinned back to the same thread.
-    private sealed class TwainThread : IDisposable
-    {
-        private readonly Dispatcher _dispatcher;
-        private readonly HwndSource _hwndSource;
-
-        // Some TWAIN drivers (Epson's included) dereference the parent window
-        // handle passed to DAT_USERINTERFACE/MSG_ENABLEDS unconditionally, even
-        // with ShowUI=false, and access-violate natively when given IntPtr.Zero.
-        // A real (just invisible) window is created here so there is always a
-        // valid HWND to hand the driver.
-        public IntPtr WindowHandle { get; }
-
-        public TwainThread()
-        {
-            using var ready = new ManualResetEventSlim();
-            Dispatcher? dispatcher = null;
-            HwndSource? hwndSource = null;
-
-            var thread = new Thread(() =>
-            {
-                dispatcher = Dispatcher.CurrentDispatcher;
-                SynchronizationContext.SetSynchronizationContext(
-                    new DispatcherSynchronizationContext(dispatcher)
-                );
-
-                hwndSource = new HwndSource(new HwndSourceParameters("ScannerSdkTwainHost")
-                {
-                    Width = 0,
-                    Height = 0,
-                    WindowStyle = 0
-                });
-
-                ready.Set();
-                Dispatcher.Run();
-            })
-            {
-                IsBackground = true,
-                Name = "TwainThread"
-            };
-            thread.SetApartmentState(ApartmentState.STA);
-            thread.Start();
-
-            ready.Wait();
-            _dispatcher = dispatcher!;
-            _hwndSource = hwndSource!;
-            WindowHandle = _hwndSource.Handle;
-        }
-
-        public Task<T> RunAsync<T>(Func<T> action) =>
-            _dispatcher.InvokeAsync(action).Task;
-
-        public async Task<T> RunAsync<T>(Func<Task<T>> action) =>
-            await await _dispatcher.InvokeAsync(action);
-
-        public void Dispose()
-        {
-            _dispatcher.Invoke(() => _hwndSource.Dispose());
-            _dispatcher.InvokeShutdown();
         }
     }
 
@@ -493,7 +419,7 @@ public sealed class TwainScannerProvider : IScannerProvider, IDisposable
 
             var outputBytes = driverFormat == options.Format
                 ? fileBytes
-                : PdfDocument.WrapJpeg(fileBytes, options.Dpi);
+                : TwainPdfDocument.WrapJpeg(fileBytes, options.Dpi);
             var outputFileName =
                 $"{Path.GetFileNameWithoutExtension(completedFilePath)}.{options.Format.ToLowerInvariant()}";
 
@@ -563,57 +489,6 @@ public sealed class TwainScannerProvider : IScannerProvider, IDisposable
             source.Capabilities.CapXferCount,
             1
         );
-    }
-
-    private static void ValidateOptions(
-        ScanOptions options,
-        ScannerCapabilities capabilities
-    )
-    {
-        if (!capabilities.Resolutions.Contains(options.Dpi))
-        {
-            throw new UnsupportedCapabilityException(
-                "resolution",
-                options.Dpi,
-                capabilities.Resolutions
-            );
-        }
-
-        if (!capabilities.ColorModes.Contains(options.ColorMode))
-        {
-            throw new UnsupportedCapabilityException(
-                "colorMode",
-                options.ColorMode,
-                capabilities.ColorModes
-            );
-        }
-
-        if (!capabilities.Sources.Contains(options.Source))
-        {
-            throw new UnsupportedCapabilityException(
-                "source",
-                options.Source,
-                capabilities.Sources
-            );
-        }
-
-        if (options.Duplex && !capabilities.Duplex)
-        {
-            throw new UnsupportedCapabilityException(
-                "duplex",
-                options.Duplex,
-                false
-            );
-        }
-
-        if (!capabilities.Formats.Contains(options.Format))
-        {
-            throw new UnsupportedCapabilityException(
-                "format",
-                options.Format,
-                capabilities.Formats
-            );
-        }
     }
 
     private static DataSource? FindSource(

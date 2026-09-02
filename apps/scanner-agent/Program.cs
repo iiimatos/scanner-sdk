@@ -1,4 +1,5 @@
 using ScannerAgent.Errors;
+using ScannerAgent.Extensions;
 using ScannerAgent.Health;
 using ScannerAgent.Models;
 using ScannerAgent.Providers;
@@ -9,7 +10,10 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.WebHost.UseUrls("http://127.0.0.1:17890");
+builder.WebHost.UseUrls(
+    builder.Configuration["ScannerAgent:Url"] ??
+    "http://127.0.0.1:17890"
+);
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -30,16 +34,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddOpenApi();
-builder.Services.AddSingleton<MockScannerProvider>();
-builder.Services.AddSingleton<TwainScannerProvider>();
-builder.Services.AddSingleton<IScannerProvider>(services =>
-    new CompositeScannerProvider(
-        [
-            services.GetRequiredService<MockScannerProvider>(),
-            services.GetRequiredService<TwainScannerProvider>()
-        ]
-    ));
-builder.Services.AddScoped<ScanService>();
+builder.Services.AddScannerProvider(builder.Configuration);
 var app = builder.Build();
 
 app.UseCors("PlaygroundDevelopment");
@@ -49,8 +44,13 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.MapGet("/health", () => new HealthResponse("ready", "scanner-agent", "0.1.0"))
+static HealthResponse GetHealth() => new("ready", "scanner-agent", "0.1.0");
+
+app.MapGet("/health", GetHealth)
     .WithName("GetHealth");
+
+app.MapGet("/health/live", GetHealth)
+    .WithName("GetHealthLive");
 
 app.MapGet("/devices", async (IScannerProvider scannerProvider, CancellationToken cancellationToken) =>
     await scannerProvider.GetDevicesAsync(cancellationToken))
@@ -62,38 +62,24 @@ app.MapGet(
         string deviceId,
         IScannerProvider scannerProvider,
         CancellationToken cancellationToken
-    ) =>
-    {
-        ScannerCapabilities? capabilities;
+    ) => await GetCapabilitiesResult(
+        deviceId,
+        scannerProvider,
+        cancellationToken
+    )
+);
 
-        try
-        {
-            capabilities =
-                await scannerProvider.GetCapabilitiesAsync(
-                    deviceId,
-                    cancellationToken
-                );
-        }
-        catch (ScannerOperationException exception)
-        {
-            return Results.Problem(
-                title: exception.Code,
-                detail: exception.Message,
-                statusCode: StatusCodes.Status503ServiceUnavailable
-            );
-        }
-
-        if (capabilities is null)
-        {
-            return Results.NotFound(new
-            {
-                code = "SCANNER_DEVICE_NOT_FOUND",
-                message = "Scanner device was not found."
-            });
-        }
-
-        return Results.Ok(capabilities);
-    }
+app.MapGet(
+    "/capabilities",
+    async (
+        string deviceId,
+        IScannerProvider scannerProvider,
+        CancellationToken cancellationToken
+    ) => await GetCapabilitiesResult(
+        deviceId,
+        scannerProvider,
+        cancellationToken
+    )
 );
 
 app.MapPost(
@@ -146,5 +132,42 @@ static object ToErrorResponse(ScannerException exception) => new
     code = exception.Code,
     message = exception.Message
 };
+
+static async Task<IResult> GetCapabilitiesResult(
+    string deviceId,
+    IScannerProvider scannerProvider,
+    CancellationToken cancellationToken
+)
+{
+    ScannerCapabilities? capabilities;
+
+    try
+    {
+        capabilities =
+            await scannerProvider.GetCapabilitiesAsync(
+                deviceId,
+                cancellationToken
+            );
+    }
+    catch (ScannerOperationException exception)
+    {
+        return Results.Problem(
+            title: exception.Code,
+            detail: exception.Message,
+            statusCode: StatusCodes.Status503ServiceUnavailable
+        );
+    }
+
+    if (capabilities is null)
+    {
+        return Results.NotFound(new
+        {
+            code = "SCANNER_DEVICE_NOT_FOUND",
+            message = "Scanner device was not found."
+        });
+    }
+
+    return Results.Ok(capabilities);
+}
 
 public partial class Program;
