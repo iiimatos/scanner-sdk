@@ -7,6 +7,7 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "test": "turbo test",
+    "test:contract": "dotnet build apps/scanner-agent/ScannerAgent.csproj && pnpm --filter @scanner-sdk/client test:contract",
     "typecheck": "turbo typecheck",
     "agent:dev": "dotnet run --project apps/scanner-agent/ScannerAgent.csproj",
     "agent:build": "dotnet build ScannerSdk.sln",
