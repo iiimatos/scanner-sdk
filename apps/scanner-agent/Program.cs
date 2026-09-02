@@ -29,7 +29,15 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddOpenApi();
-builder.Services.AddSingleton<IScannerProvider, MockScannerProvider>();
+builder.Services.AddSingleton<MockScannerProvider>();
+builder.Services.AddSingleton<TwainScannerProvider>();
+builder.Services.AddSingleton<IScannerProvider>(services =>
+    new CompositeScannerProvider(
+        [
+            services.GetRequiredService<MockScannerProvider>(),
+            services.GetRequiredService<TwainScannerProvider>()
+        ]
+    ));
 builder.Services.AddScoped<ScanService>();
 var app = builder.Build();
 
