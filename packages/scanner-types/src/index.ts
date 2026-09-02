@@ -17,27 +17,21 @@ export type ScanSource =
 export type ScanFormat = "pdf" | "png" | "jpeg";
 
 export interface ScannerCapabilities {
-  supportsDuplex: boolean;
-  supportsAdf: boolean;
+  resolutions: number[];
   colorModes: ScanColorMode[];
+  sources: ScanSource[];
   formats: ScanFormat[];
-  minDpi: number;
-  maxDpi: number;
+  duplex: boolean;
 }
 
 export interface ScannerDevice {
   id: string;
   name: string;
   provider: ScannerProviderType;
+  status: ScannerStatus;
+  capabilities: ScannerCapabilities;
   manufacturer?: string;
   model?: string;
-}
-
-export interface ScannerCapabilities {
-  resolutions: number[];
-  colorModes: ScanColorMode[];
-  sources: ScanSource[];
-  duplex: boolean;
 }
 
 export interface ScanOptions {

@@ -9,12 +9,11 @@ describe("scanner types", () => {
       provider: "mock",
       status: "ready",
       capabilities: {
-        supportsAdf: false,
-        supportsDuplex: false,
-        colorModes: ["color", "grayscale", "black-and-white"],
+        resolutions: [150, 200, 300, 600],
+        colorModes: ["color", "grayscale", "black-white"],
+        sources: ["flatbed", "feeder"],
         formats: ["pdf", "png", "jpeg"],
-        minDpi: 75,
-        maxDpi: 600
+        duplex: true
       }
     };
 

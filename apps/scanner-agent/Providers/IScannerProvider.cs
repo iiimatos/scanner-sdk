@@ -1,4 +1,4 @@
-using ScannerAgent.Devices;
+using ScannerAgent.Models;
 using ScannerAgent.Scanning;
 
 namespace ScannerAgent.Providers;

@@ -1,4 +1,4 @@
-namespace ScannerAgent.Devices;
+namespace ScannerAgent.Models;
 
 public sealed record ScannerDevice(
     string Id,

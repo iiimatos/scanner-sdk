@@ -1,7 +1,21 @@
 import { z } from "zod";
-import type { ScanOptions, ScannerCapabilities, ScanResult, ScannerDevice } from "@scanner-sdk/types";
+import type {
+  ScanOptions,
+  ScannerCapabilities,
+  ScannerDevice,
+  ScanResult,
+} from "@scanner-sdk/types";
 
-export type { ScanOptions, ScannerCapabilities, ScanResult, ScannerDevice, ScannerStatus, ScanColorMode, ScanSource } from "@scanner-sdk/types";
+export type {
+  ScanColorMode,
+  ScanFormat,
+  ScanOptions,
+  ScanResult,
+  ScanSource,
+  ScannerCapabilities,
+  ScannerDevice,
+  ScannerStatus,
+} from "@scanner-sdk/types";
 
 export interface ScannerClientOptions {
   baseUrl?: string;
@@ -18,6 +32,9 @@ const scannerCapabilitiesSchema = z.object({
   sources: z.array(
     z.enum(["flatbed", "feeder"])
   ),
+  formats: z.array(
+    z.enum(["pdf", "png", "jpeg"])
+  ),
   duplex: z.boolean(),
 });
 
@@ -29,6 +46,7 @@ const scannerDeviceSchema = z.object({
     "ready",
     "busy",
     "offline",
+    "unknown",
   ]),
   capabilities: scannerCapabilitiesSchema,
 });
@@ -40,13 +58,13 @@ const scanResultSchema = z.object({
   format: z.enum(["pdf", "png", "jpeg"]),
   mimeType: z.string(),
   fileName: z.string().optional(),
-  message: z.string().optional()
+  message: z.string().optional(),
 });
 
 const healthSchema = z.object({
   status: z.string(),
   service: z.string(),
-  version: z.string()
+  version: z.string(),
 });
 
 export class ScannerClient {
@@ -84,9 +102,9 @@ export class ScannerClient {
     const response = await this.fetchFn(`${this.baseUrl}/scan`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify(options)
+      body: JSON.stringify(options),
     });
     await ensureOk(response, "Unable to start scan");
 
@@ -96,25 +114,24 @@ export class ScannerClient {
   async getCapabilities(
     deviceId: string
   ): Promise<ScannerCapabilities> {
-    const response = await fetch(
+    const response = await this.fetchFn(
       `${this.baseUrl}/devices/${encodeURIComponent(
         deviceId
       )}/capabilities`
     );
+    await ensureOk(response, "Unable to load scanner capabilities");
 
-    if (!response.ok) {
-      throw new Error(
-        `Unable to load scanner capabilities`
-      );
-    }
-
-    return response.json();
+    return scannerCapabilitiesSchema.parse(await response.json());
   }
 }
 
 async function ensureOk(response: Response, message: string): Promise<void> {
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    throw new Error(body ? `${message}: ${response.status} ${body}` : `${message}: ${response.status}`);
+    throw new Error(
+      body
+        ? `${message}: ${response.status} ${body}`
+        : `${message}: ${response.status}`
+    );
   }
 }

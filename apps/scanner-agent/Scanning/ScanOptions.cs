@@ -4,4 +4,7 @@ public sealed record ScanOptions(
     string DeviceId,
     int Dpi,
     string ColorMode,
-    string Format);
+    string Source,
+    bool Duplex,
+    string Format
+);

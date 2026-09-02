@@ -1,4 +1,4 @@
-using ScannerAgent.Devices;
+using ScannerAgent.Models;
 using ScannerAgent.Scanning;
 
 namespace ScannerAgent.Providers;
@@ -16,7 +16,8 @@ public sealed class MockScannerProvider : IScannerProvider
             Resolutions: [150, 200, 300, 600],
             ColorModes: ["color", "grayscale", "black-white"],
             Sources: ["flatbed", "feeder"],
-            Duplex: true
+            Duplex: true,
+            Formats: ["pdf", "png", "jpeg"]
         ));
 
     public Task<ScannerCapabilities?> GetCapabilitiesAsync(
@@ -24,29 +25,13 @@ public sealed class MockScannerProvider : IScannerProvider
         CancellationToken cancellationToken = default
     )
     {
-        if (deviceId != "mock-scanner-001")
+        if (deviceId != DeviceId)
         {
             return Task.FromResult<ScannerCapabilities?>(null);
         }
 
-        var capabilities = new ScannerCapabilities(
-            Resolutions: new[] { 150, 200, 300, 600 },
-            ColorModes: new[]
-            {
-            "color",
-            "grayscale",
-            "black-white"
-            },
-            Sources: new[]
-            {
-            "flatbed",
-            "feeder"
-            },
-            Duplex: true
-        );
-
         return Task.FromResult<ScannerCapabilities?>(
-            capabilities
+            Device.Capabilities
         );
     }
 

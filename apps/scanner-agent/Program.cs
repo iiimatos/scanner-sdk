@@ -1,7 +1,8 @@
-using ScannerAgent.Devices;
+using ScannerAgent.Errors;
 using ScannerAgent.Health;
 using ScannerAgent.Providers;
 using ScannerAgent.Scanning;
+using ScannerAgent.Services;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -21,17 +22,7 @@ builder.Services.AddCors(options =>
         policy
             .WithOrigins(
                 "http://localhost:3000",
-                "http://127.0.0.1:3000",
-                "http://localhost:3001",
-                "http://127.0.0.1:3001",
-                "http://localhost:3002",
-                "http://127.0.0.1:3002",
-                "http://localhost:3003",
-                "http://127.0.0.1:3003",
-                "http://localhost:3004",
-                "http://127.0.0.1:3004",
-                "http://localhost:3005",
-                "http://127.0.0.1:3005")
+                "http://127.0.0.1:3000")
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -39,7 +30,7 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddOpenApi();
 builder.Services.AddSingleton<IScannerProvider, MockScannerProvider>();
-
+builder.Services.AddScoped<ScanService>();
 var app = builder.Build();
 
 app.UseCors("PlaygroundDevelopment");
@@ -74,7 +65,7 @@ app.MapGet(
         {
             return Results.NotFound(new
             {
-                code = "DEVICE_NOT_FOUND",
+                code = "SCANNER_DEVICE_NOT_FOUND",
                 message = "Scanner device was not found."
             });
         }
@@ -83,10 +74,47 @@ app.MapGet(
     }
 );
 
-app.MapPost("/scan", async (ScanOptions options, IScannerProvider scannerProvider, CancellationToken cancellationToken) =>
-    await scannerProvider.ScanAsync(options, cancellationToken))
-    .WithName("Scan");
+app.MapPost(
+    "/scan",
+    async (
+        ScanOptions options,
+        ScanService scanService,
+        CancellationToken cancellationToken
+    ) =>
+    {
+        try
+        {
+            var result = await scanService.ScanAsync(
+                options,
+                cancellationToken
+            );
+
+            return Results.Ok(result);
+        }
+        catch (ScannerDeviceNotFoundException exception)
+        {
+            return Results.NotFound(ToErrorResponse(exception));
+        }
+        catch (UnsupportedCapabilityException exception)
+        {
+            return Results.BadRequest(new
+            {
+                code = exception.Code,
+                message = exception.Message,
+                capability = exception.Capability,
+                requested = exception.Requested,
+                supported = exception.Supported
+            });
+        }
+    }
+);
 
 app.Run();
+
+static object ToErrorResponse(ScannerException exception) => new
+{
+    code = exception.Code,
+    message = exception.Message
+};
 
 public partial class Program;

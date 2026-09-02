@@ -28,7 +28,10 @@ public sealed class MockScannerProviderTests
             DeviceId: "mock-scanner-001",
             Dpi: 300,
             ColorMode: "color",
-            Format: "pdf"));
+            Source: "flatbed",
+            Duplex: true,
+            Format: "pdf"
+        ));
 
         Assert.Equal("completed", result.Status);
         Assert.Equal("application/pdf", result.MimeType);

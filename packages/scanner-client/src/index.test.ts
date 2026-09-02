@@ -22,12 +22,11 @@ describe("ScannerClient", () => {
         provider: "mock",
         status: "ready",
         capabilities: {
-          supportsAdf: false,
-          supportsDuplex: false,
-          colorModes: ["color"],
-          formats: ["pdf"],
-          minDpi: 75,
-          maxDpi: 600
+          resolutions: [150, 200, 300, 600],
+          colorModes: ["color", "grayscale", "black-white"],
+          sources: ["flatbed", "feeder"],
+          formats: ["pdf", "png", "jpeg"],
+          duplex: true
         }
       }
     ]));
@@ -51,7 +50,28 @@ describe("ScannerClient", () => {
       deviceId: "mock-scanner-001",
       dpi: 300,
       colorMode: "color",
+      source: "flatbed",
+      duplex: false,
       format: "pdf"
     })).resolves.toMatchObject({ status: "completed" });
+  });
+
+  it("loads capabilities with the configured fetch implementation", async () => {
+    const fetchFn = vi.fn(async () => Response.json({
+      resolutions: [150, 200, 300, 600],
+      colorModes: ["color", "grayscale", "black-white"],
+      sources: ["flatbed", "feeder"],
+      formats: ["pdf", "png", "jpeg"],
+      duplex: true
+    }));
+    const scanner = new ScannerClient({ fetchFn });
+
+    await expect(scanner.getCapabilities("mock scanner/id")).resolves.toMatchObject({
+      resolutions: [150, 200, 300, 600],
+      duplex: true
+    });
+    expect(fetchFn).toHaveBeenCalledWith(
+      "http://127.0.0.1:17890/devices/mock%20scanner%2Fid/capabilities"
+    );
   });
 });

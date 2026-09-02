@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ScannerClient, type ScannerCapabilities, type ScanColorMode, type ScanResult, type ScannerDevice, type ScanSource, type ScanOptions } from "@scanner-sdk/client";
+import {
+  ScannerClient,
+  type ScanColorMode,
+  type ScanOptions,
+  type ScanResult,
+  type ScanSource,
+  type ScannerCapabilities,
+  type ScannerDevice,
+} from "@scanner-sdk/client";
 
 export default function Home() {
   const scanner = useMemo(() => new ScannerClient(), []);
@@ -42,6 +50,7 @@ export default function Home() {
       if (!firstDevice) {
         setSelectedDeviceId(null);
         setCapabilities(null);
+        setScanResult(null);
         return;
       }
 
@@ -55,8 +64,10 @@ export default function Home() {
       const message = caught instanceof Error ? caught.message : "Unable to load scanners";
 
       setError(message);
+      setDevices([]);
       setSelectedDeviceId(null);
       setCapabilities(null);
+      setScanResult(null);
     }
   }, [scanner]);
 
@@ -100,6 +111,14 @@ export default function Home() {
   async function handleDeviceChange(
     deviceId: string
   ) {
+    if (!deviceId) {
+      setSelectedDeviceId(null);
+      setCapabilities(null);
+      setScanResult(null);
+      setError(null);
+      return;
+    }
+
     setSelectedDeviceId(deviceId);
     setCapabilities(null);
     setScanResult(null);
