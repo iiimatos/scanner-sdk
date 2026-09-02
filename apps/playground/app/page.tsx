@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ScannerClient,
   type ScanColorMode,
@@ -27,6 +27,29 @@ export default function Home() {
   const [format, setFormat] = useState<ScanFormat>("pdf");
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const selectedDevice = devices.find((device) => device.id === selectedDeviceId) ?? null;
+  const previewDialogRef = useRef<HTMLDialogElement>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const previewUrl = useMemo(() => {
+    if (!scanResult?.dataBase64) {
+      return null;
+    }
+
+    return `data:${scanResult.mimeType};base64,${scanResult.dataBase64}`;
+  }, [scanResult]);
+
+  useEffect(() => {
+    const dialog = previewDialogRef.current;
+
+    if (!dialog) {
+      return;
+    }
+
+    if (previewOpen && !dialog.open) {
+      dialog.showModal();
+    } else if (!previewOpen && dialog.open) {
+      dialog.close();
+    }
+  }, [previewOpen]);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -100,6 +123,7 @@ export default function Home() {
       const result = await scanner.scan(scanOptions);
 
       setScanResult(result);
+      setPreviewOpen(Boolean(result.dataBase64));
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -470,6 +494,40 @@ export default function Home() {
           </p>
         </section>
       ) : null}
+      <dialog
+        ref={previewDialogRef}
+        className="w-full max-w-2xl rounded border border-slate-200 p-0 backdrop:bg-slate-900/50"
+        onClose={() => setPreviewOpen(false)}
+      >
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+          <h2 className="text-lg font-medium">
+            {scanResult?.fileName ?? "Scan preview"}
+          </h2>
+          <button
+            className="rounded border border-slate-300 px-3 py-1 text-sm hover:bg-slate-50"
+            onClick={() => previewDialogRef.current?.close()}
+            type="button"
+          >
+            Close
+          </button>
+        </div>
+        <div className="max-h-[70vh] overflow-auto p-5">
+          {previewUrl && scanResult?.format === "pdf" ? (
+            <embed
+              src={previewUrl}
+              type={scanResult.mimeType}
+              className="h-[60vh] w-full"
+            />
+          ) : previewUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={previewUrl}
+              alt={scanResult?.fileName ?? "Scan preview"}
+              className="mx-auto max-w-full"
+            />
+          ) : null}
+        </div>
+      </dialog>
     </main>
   );
 }

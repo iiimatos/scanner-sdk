@@ -51,4 +51,5 @@ export interface ScanResult {
   mimeType: string;
   fileName?: string;
   message?: string;
+  dataBase64?: string;
 }

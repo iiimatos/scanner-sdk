@@ -324,9 +324,7 @@ public sealed class TwainScannerProvider : IScannerProvider, IDisposable
         CancellationToken cancellationToken
     )
     {
-        var fileFormat = ToTwainFileFormat(options.Format);
-
-        if (fileFormat is null)
+        if (ToTwainFileFormat(options.Format) is null)
         {
             throw new UnsupportedCapabilityException(
                 "format",
@@ -334,6 +332,15 @@ public sealed class TwainScannerProvider : IScannerProvider, IDisposable
                 DefaultCapabilities.Formats
             );
         }
+
+        // This driver (and others like it) accepts DAT_SETUPFILEXFER for PDF
+        // without error but never actually writes the output file. JPEG file
+        // transfer is reliable, so PDF output is produced by scanning to
+        // JPEG and wrapping it into a single-page PDF ourselves.
+        var driverFormat = options.Format.Equals("pdf", StringComparison.OrdinalIgnoreCase)
+            ? "jpeg"
+            : options.Format;
+        var fileFormat = ToTwainFileFormat(driverFormat)!;
 
         var supportedTransferMechanisms = ReadValues(source.Capabilities.ICapXferMech);
 
@@ -357,7 +364,7 @@ public sealed class TwainScannerProvider : IScannerProvider, IDisposable
             "TWAIN output format could not be configured."
         );
 
-        var filePath = CreateScanFilePath(options.Format);
+        var filePath = CreateScanFilePath(driverFormat);
         var setupFileXfer = new TWSetupFileXfer
         {
             FileName = filePath,
@@ -472,14 +479,33 @@ public sealed class TwainScannerProvider : IScannerProvider, IDisposable
                 Task.Delay(TimeSpan.FromSeconds(5))
             );
 
+            await WaitForFileReadyAsync(
+                completedFilePath,
+                cancellationToken
+            );
+
+            var fileBytes = await File.ReadAllBytesAsync(
+                completedFilePath,
+                cancellationToken
+            );
+
+            TryDeleteFile(completedFilePath);
+
+            var outputBytes = driverFormat == options.Format
+                ? fileBytes
+                : PdfDocument.WrapJpeg(fileBytes, options.Dpi);
+            var outputFileName =
+                $"{Path.GetFileNameWithoutExtension(completedFilePath)}.{options.Format.ToLowerInvariant()}";
+
             return new ScanResult(
                 Id: $"scan_{options.DeviceId}_{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
                 DeviceId: options.DeviceId,
                 Status: "completed",
                 Format: options.Format,
                 MimeType: ToMimeType(options.Format),
-                FileName: Path.GetFileName(completedFilePath),
-                Message: "TWAIN scan completed."
+                FileName: outputFileName,
+                Message: "TWAIN scan completed.",
+                DataBase64: Convert.ToBase64String(outputBytes)
             );
         }
         finally
@@ -850,6 +876,56 @@ public sealed class TwainScannerProvider : IScannerProvider, IDisposable
         try
         {
             capability.SetValue(value);
+        }
+        catch
+        {
+        }
+    }
+
+    // Some TWAIN drivers (notably when assembling multi-page PDFs) raise
+    // DataTransferred before the output file is fully flushed to disk, so the
+    // file may not exist yet - or may still be growing - at this point. Poll
+    // until it appears and its size stops changing between checks.
+    private static async Task WaitForFileReadyAsync(
+        string filePath,
+        CancellationToken cancellationToken
+    )
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
+        long previousLength = -1;
+
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (File.Exists(filePath))
+            {
+                var currentLength = new FileInfo(filePath).Length;
+
+                if (currentLength > 0 && currentLength == previousLength)
+                {
+                    return;
+                }
+
+                previousLength = currentLength;
+            }
+
+            await Task.Delay(150, cancellationToken);
+        }
+
+        throw new ScannerOperationException(
+            "TWAIN_TRANSFER_FAILED",
+            $"TWAIN transfer reported completion but the output file '{filePath}' was never written."
+        );
+    }
+
+    private static void TryDeleteFile(
+        string filePath
+    )
+    {
+        try
+        {
+            File.Delete(filePath);
         }
         catch
         {

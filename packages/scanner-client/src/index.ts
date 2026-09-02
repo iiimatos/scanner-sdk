@@ -59,6 +59,7 @@ const scanResultSchema = z.object({
   mimeType: z.string(),
   fileName: z.string().optional(),
   message: z.string().optional(),
+  dataBase64: z.string().optional(),
 });
 
 const healthSchema = z.object({
