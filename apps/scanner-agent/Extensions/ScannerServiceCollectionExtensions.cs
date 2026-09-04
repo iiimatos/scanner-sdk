@@ -24,6 +24,7 @@ public static partial class ScannerServiceCollectionExtensions
         services.AddSingleton<IScannerProvider>(
             ResolveScannerProvider
         );
+        services.AddSingleton<ScanFileStore>();
         services.AddScoped<ScanService>();
 
         return services;

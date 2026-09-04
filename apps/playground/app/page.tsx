@@ -5,6 +5,7 @@ import {
   ScannerClient,
   type ScanColorMode,
   type ScanFormat,
+  type ScanOutputMode,
   type ScanOptions,
   type ScanResult,
   type ScanSource,
@@ -19,12 +20,14 @@ export default function Home() {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [capabilities, setCapabilities] = useState<ScannerCapabilities | null>(null);
   const [dpi, setDpi] = useState(300);
   const [colorMode, setColorMode] = useState<ScanColorMode>("color");
   const [source, setSource] = useState<ScanSource>("flatbed");
   const [duplex, setDuplex] = useState(false);
   const [format, setFormat] = useState<ScanFormat>("pdf");
+  const [outputMode, setOutputMode] = useState<ScanOutputMode>("base64");
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const selectedDevice = devices.find((device) => device.id === selectedDeviceId) ?? null;
   const previewDialogRef = useRef<HTMLDialogElement>(null);
@@ -118,6 +121,7 @@ export default function Home() {
         source,
         duplex,
         format,
+        outputMode,
       };
 
       const result = await scanner.scan(scanOptions);
@@ -132,6 +136,27 @@ export default function Home() {
       );
     } finally {
       setIsScanning(false);
+    }
+  }
+
+  async function handleDownloadScan() {
+    if (!scanResult?.downloadUrl) {
+      return;
+    }
+
+    setIsDownloading(true);
+    setError(null);
+
+    try {
+      await scanner.downloadScan(scanResult);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Download failed"
+      );
+    } finally {
+      setIsDownloading(false);
     }
   }
 
@@ -404,6 +429,27 @@ export default function Home() {
                 ) : null}
               </div>
             </label>
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-slate-700">
+                Output
+              </span>
+              <select
+                className="rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+                value={outputMode}
+                onChange={(event) =>
+                  setOutputMode(
+                    event.target.value as ScanOutputMode
+                  )
+                }
+              >
+                <option value="base64">
+                  base64
+                </option>
+                <option value="url">
+                  url
+                </option>
+              </select>
+            </label>
           </div>
           <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
             <div>
@@ -481,7 +527,35 @@ export default function Home() {
                 {scanResult.mimeType}
               </dd>
             </div>
+            <div>
+              <dt className="font-medium">
+                Output
+              </dt>
+              <dd className="mt-1">
+                {scanResult.downloadUrl ? "url" : "base64"}
+              </dd>
+            </div>
+            {scanResult.downloadUrl ? (
+              <div>
+                <dt className="font-medium">
+                  Download URL
+                </dt>
+                <dd className="mt-1 break-all">
+                  {scanResult.downloadUrl}
+                </dd>
+              </div>
+            ) : null}
           </dl>
+          {scanResult.downloadUrl ? (
+            <button
+              className="mt-5 rounded bg-emerald-900 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-500"
+              disabled={isDownloading}
+              onClick={() => void handleDownloadScan()}
+              type="button"
+            >
+              {isDownloading ? "Downloading..." : "Download scan"}
+            </button>
+          ) : null}
         </section>
       ) : null}
       {error ? (

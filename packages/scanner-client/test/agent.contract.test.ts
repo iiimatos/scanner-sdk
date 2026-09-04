@@ -92,22 +92,43 @@ describe("Scanner Agent contract", () => {
       devices[0]?.capabilities
     );
 
-    await expect(
-      scanner.scan({
-        deviceId: "mock-scanner-1",
-        dpi: 300,
-        colorMode: "color",
-        source: "flatbed",
-        duplex: false,
-        format: "pdf",
-      })
-    ).resolves.toMatchObject({
+    const base64Result = await scanner.scan({
+      deviceId: "mock-scanner-1",
+      dpi: 300,
+      colorMode: "color",
+      source: "flatbed",
+      duplex: false,
+      format: "pdf",
+      outputMode: "base64",
+    });
+
+    expect(base64Result).toMatchObject({
       deviceId: "mock-scanner-1",
       status: "completed",
       format: "pdf",
       mimeType: "application/pdf",
       fileName: "mock-scan.pdf",
     });
+    expect(base64Result.dataBase64).toBeTruthy();
+    expect(base64Result.downloadUrl).toBeUndefined();
+
+    const urlResult = await scanner.scan({
+      deviceId: "mock-scanner-1",
+      dpi: 300,
+      colorMode: "color",
+      source: "flatbed",
+      duplex: false,
+      format: "pdf",
+      outputMode: "url",
+    });
+
+    expect(urlResult.dataBase64).toBeUndefined();
+    expect(urlResult.downloadUrl).toMatch(/\/scans\/.+\/file$/);
+
+    const scanFile = await scanner.getScanFile(urlResult.downloadUrl!);
+
+    expect(scanFile.size).toBeGreaterThan(0);
+    expect(scanFile.type).toBe(urlResult.mimeType);
   });
 
   it("surfaces scanner agent domain errors through the client", async () => {

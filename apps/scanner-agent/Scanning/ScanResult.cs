@@ -8,4 +8,5 @@ public sealed record ScanResult(
     string MimeType,
     string? FileName,
     string? Message,
-    string? DataBase64 = null);
+    string? DataBase64 = null,
+    string? DownloadUrl = null);

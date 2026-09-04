@@ -16,6 +16,8 @@ export type ScanSource =
 
 export type ScanFormat = "pdf" | "png" | "jpeg";
 
+export type ScanOutputMode = "base64" | "url";
+
 export interface ScannerCapabilities {
   resolutions: number[];
   colorModes: ScanColorMode[];
@@ -41,6 +43,7 @@ export interface ScanOptions {
   source: ScanSource;
   duplex: boolean;
   format: ScanFormat;
+  outputMode?: ScanOutputMode;
 }
 
 export interface ScanResult {
@@ -52,4 +55,5 @@ export interface ScanResult {
   fileName?: string;
   message?: string;
   dataBase64?: string;
+  downloadUrl?: string;
 }

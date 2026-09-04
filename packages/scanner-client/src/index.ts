@@ -9,6 +9,7 @@ import type {
 export type {
   ScanColorMode,
   ScanFormat,
+  ScanOutputMode,
   ScanOptions,
   ScanResult,
   ScanSource,
@@ -60,7 +61,11 @@ const scanResultSchema = z.object({
   fileName: z.string().optional(),
   message: z.string().optional(),
   dataBase64: z.string().optional(),
-});
+  downloadUrl: z.string().optional(),
+}).refine(
+  (result) => !(result.dataBase64 && result.downloadUrl),
+  "Scan result cannot include both dataBase64 and downloadUrl"
+);
 
 const healthSchema = z.object({
   status: z.string(),
@@ -112,6 +117,36 @@ export class ScannerClient {
     return scanResultSchema.parse(await response.json());
   }
 
+  async getScanFile(downloadUrl: string): Promise<Blob> {
+    const response = await this.fetchFn(
+      this.toAgentUrl(downloadUrl)
+    );
+    await ensureOk(response, "Unable to fetch scan file");
+
+    return response.blob();
+  }
+
+  async downloadScan(scanResult: ScanResult): Promise<void> {
+    if (!scanResult.downloadUrl) {
+      throw new Error("Scan result does not include a downloadUrl");
+    }
+
+    if (typeof document === "undefined") {
+      throw new Error("downloadScan is only available in browser environments");
+    }
+
+    const file = await this.getScanFile(scanResult.downloadUrl);
+    const fileUrl = URL.createObjectURL(file);
+    const link = document.createElement("a");
+
+    link.href = fileUrl;
+    link.download = scanResult.fileName ?? `scan.${scanResult.format}`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(fileUrl);
+  }
+
   async getCapabilities(
     deviceId: string
   ): Promise<ScannerCapabilities> {
@@ -123,6 +158,14 @@ export class ScannerClient {
     await ensureOk(response, "Unable to load scanner capabilities");
 
     return scannerCapabilitiesSchema.parse(await response.json());
+  }
+
+  private toAgentUrl(url: string): string {
+    if (/^https?:\/\//i.test(url)) {
+      return url;
+    }
+
+    return `${this.baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
   }
 }
 

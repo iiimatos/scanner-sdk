@@ -18,6 +18,7 @@ builder.WebHost.UseUrls(
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+    options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
 });
 
 builder.Services.AddCors(options =>
@@ -87,6 +88,7 @@ app.MapPost(
     async (
         ScanOptions options,
         ScanService scanService,
+        HttpRequest httpRequest,
         CancellationToken cancellationToken
     ) =>
     {
@@ -97,7 +99,9 @@ app.MapPost(
                 cancellationToken
             );
 
-            return Results.Ok(result);
+            return Results.Ok(
+                ToPublicScanResult(result, httpRequest)
+            );
         }
         catch (ScannerDeviceNotFoundException exception)
         {
@@ -125,6 +129,32 @@ app.MapPost(
     }
 );
 
+app.MapGet(
+    "/scans/{scanId}/file",
+    (
+        string scanId,
+        ScanFileStore scanFileStore
+    ) =>
+    {
+        var scan = scanFileStore.Get(scanId);
+
+        if (scan is null)
+        {
+            return Results.NotFound(new
+            {
+                code = "SCAN_FILE_NOT_FOUND",
+                message = "Scan file was not found."
+            });
+        }
+
+        return Results.File(
+            scan.Content,
+            scan.MimeType,
+            scan.FileName
+        );
+    }
+);
+
 app.Run();
 
 static object ToErrorResponse(ScannerException exception) => new
@@ -132,6 +162,22 @@ static object ToErrorResponse(ScannerException exception) => new
     code = exception.Code,
     message = exception.Message
 };
+
+static ScanResult ToPublicScanResult(
+    ScanResult scanResult,
+    HttpRequest request
+)
+{
+    if (scanResult.DownloadUrl is null || !scanResult.DownloadUrl.StartsWith('/'))
+    {
+        return scanResult;
+    }
+
+    return scanResult with
+    {
+        DownloadUrl = $"{request.Scheme}://{request.Host}{scanResult.DownloadUrl}"
+    };
+}
 
 static async Task<IResult> GetCapabilitiesResult(
     string deviceId,

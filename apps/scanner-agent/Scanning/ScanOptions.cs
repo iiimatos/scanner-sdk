@@ -6,5 +6,6 @@ public sealed record ScanOptions(
     string ColorMode,
     string Source,
     bool Duplex,
-    string Format
+    string Format,
+    string? OutputMode = null
 );
